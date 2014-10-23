@@ -1,0 +1,26 @@
+<nav class="navbar navbar-default" role="navigation">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Treeherder Graphs</a>
+    </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <ul class="nav navbar-nav">
+      <li class="dropdown">
+        <a href="" class="dropdown-toggle" ng-model="repoName" ng-change="console.log('foo')" data-toggle="dropdown">{{repoName}} <span class="caret"></span></a>
+        <ul class="dropdown-menu" role="menu">
+          <li ng-repeat="repo in repos">
+            <a href="#/projects/{{repo.name}}">{{repo.name}}</a>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+  <div>
+    <input class="typeahead" type="text" placeholder="Enter test keywords (e.g. 'tp5o linux')">
+  </div>
+  <div id="graph"></div>
+</div>
