@@ -35,7 +35,7 @@
     <select ng-model="myTimerange" ng-options="timerange.text for timerange in timeranges track by timerange.value" ng-change="timeRangeChanged()">
     </select>
     <hr/>
-    <div id="graph"></div>
+      <flot dataset="myData" options="myChartOptions" width="100%" height="300px"></flot>
   </div>
   <div class="graph-right-padding"></div>
 </div>

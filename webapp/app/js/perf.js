@@ -4,7 +4,7 @@
 
 "use strict";
 
-var perf = angular.module("perf", ['ui.router', 'ui.bootstrap']);
+var perf = angular.module("perf", ['ui.router', 'ui.bootstrap', 'angular-flot']);
 
 /* Copied from providers.js */
 perf.provider('thServiceDomain', function() {
@@ -144,33 +144,27 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
     };
 
     function plotGraph() {
-      $scope.plot = $.plot($("#graph"),
-                        $scope.seriesList.map(
-                          function(series) { return series.flotSeries }),
-                           {
-                             xaxis: { mode: 'time' },
-                             selection: { mode: 'xy', color: '#97c6e5' },
-                             series: { shadowSize: 0 },
-                             lines: { show: false },
-                             points: { show: true },
-                             colors: seriesColors,
-                             legend: { show: false },
-                             grid: {
-                               color: '#cdd6df',
-                               borderWidth: 2,
-                               backgroundColor: '#fff',
-                               hoverable: true,
-                               clickable: true,
-                               autoHighlight: false
-                             }
-                           });
+      $scope.myData = $scope.seriesList.map(
+        function(series) { return series.flotSeries });
+      $scope.myChartOptions =  {
+        xaxis: { mode: 'time' },
+        selection: { mode: 'xy', color: '#97c6e5' },
+        series: { shadowSize: 0 },
+        lines: { show: false },
+        points: { show: true },
+        colors: seriesColors,
+        legend: { show: false },
+        grid: {
+          color: '#cdd6df',
+          borderWidth: 2,
+          backgroundColor: '#fff',
+          hoverable: true,
+          clickable: true,
+          autoHighlight: false
+        }
+      };
 
-      function getDateStr(timestamp) {
-        var date = new Date(parseInt(timestamp));
-        return date.toUTCString();
-      }
-
-      $("#graph").bind("plothover", function (event, pos, item) {
+      $("flot > div").bind("plothover", function (event, pos, item) {
         if (item && item.series.thSeries) {
           if (item.seriesIndex != $scope.prevSeriesIndex ||
               item.dataIndex != $scope.prevDataIndex) {
@@ -183,7 +177,7 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
         }
       });
 
-      $('#graph').bind('plotclick', function(e, pos, item) {
+      $('flot > div').bind('plotclick', function(e, pos, item) {
         $scope.ttLocked = false;
         if (item) {
           $scope.updateTooltip(item);
