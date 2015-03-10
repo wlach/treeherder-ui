@@ -236,15 +236,17 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
     $scope.repoName = $stateParams.projectId;
 
     $scope.reload = function() {
-      $state.go('graphs', { 'timerange': $scope.myTimerange.value,
+      $state.transitionTo('graphs', { 'timerange': $scope.myTimerange.value,
                             'series':
-                              $scope.seriesList.map(function(series) {
-                                return encodeURIComponent(
-                                  JSON.stringify(
-                                    { project: series.projectName,
-                                      signature: series.signature,
-                                      visibility: series.visibility})); })
-                          });
+                            $scope.seriesList.map(function(series) {
+                              return encodeURIComponent(
+                                JSON.stringify(
+                                  { project: series.projectName,
+                                    signature: series.signature,
+                                    visibility: series.visibility})); })
+                                    },
+                {location: true, inherit: true, relative: $state.$current,
+                 notify: false});
     };
 
     $scope.removeSeries = function(signature) {
@@ -494,6 +496,8 @@ perf.controller('TestChooserCtrl', function($scope, $modalInstance, $http,
 });
 
 perf.config(function($stateProvider, $urlRouterProvider) {
+  $urlRouterProvider.deferIntercept();
+
   $stateProvider.state('graphs', {
     templateUrl: 'partials/perf/perfctrl.html',
     url: '/graphs?timerange&series',
@@ -501,5 +505,52 @@ perf.config(function($stateProvider, $urlRouterProvider) {
   });
 
   $urlRouterProvider.otherwise('/graphs');
-});
+})
+  // then define the interception
+  .run(function ($rootScope, $urlRouter, $location, $state) {
+    $rootScope.$on('$stateChangeStart', function(e, toState, toParams, fromState, fromParams) {
+      console.log("state change start");
+      console.log(fromParams);
+      console.log(toParams);
+      console.log($location)
+
+      if (fromState && fromState.name === 'graphs') {
+        // we're transitioning from graphs, prevent a full reinitialization
+        //console.log("inhibiting state change transition");
+        //e.preventDefault();
+        //$urlRouter.sync();
+      }
+    });
+    $rootScope.$on('$stateChangeSuccess', function(e, toState, toParams, fromState, fromParams) {
+      console.log("stateChangeSuccess");
+      console.log(fromParams);
+      console.log(toParams);
+      if (fromState && fromState.name === 'graphs') {
+        // we're transitioning from graphs, prevent a full reinitialization
+        console.log("inhibiting state change transition");
+        e.preventDefault();
+      }
+
+    });
+    $rootScope.$on('$locationChangeSuccess', function(e, newUrl, oldUrl) {
+      
+      // Prevent $urlRouter's default handler from firing
+      e.preventDefault();
+      console.log([newUrl, oldUrl]);
+      console.log($state.current.name);
+      if ($state.current.name !== 'graphs') {
+        // your stuff
+        console.log("syncin'");
+        $urlRouter.sync();
+      } else {
+        // don't sync
+        console.log("not syncin'");
+      }
+
+    });
+
+    // Configures $urlRouter's listener *after* your custom listener
+    $urlRouter.listen();
+  })
+
 
