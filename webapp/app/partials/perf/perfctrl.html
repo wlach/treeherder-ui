@@ -32,7 +32,7 @@
     <button class="btn btn-primary" ng-click="addTestData()">
       <span class="glyphicon glyphicon-plus" aria-hidden="true"></span> Add more test data</button>
   </div>
-  <div id="graphs">
+  <div id="data-display">
     <select ng-model="myTimerange" ng-options="timerange.text for timerange in timeranges track by timerange.value" ng-change="timeRangeChanged()">
     </select>
     <hr/>
@@ -42,12 +42,51 @@
         Highlight revision: <input type="text" maxlength="12" ng-change="addHighlightedRevision()" placeholder="12 character hg revision" ng-model="revisionToHighlight">
         <div class="reset-highlight-button" ng-show="resetHighlightButton" ng-click="resetHighlight()">&#10006;</div>
     </div>
+    <hr/>
+    <div id="datapoint-detail" ng-show="detailDisclosed">
+      <div id="subtest-summary">
+        <h4>Subtest Summary</h4>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Page</th><th>Mean</th><th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="subtestResult in subtestResults">
+              <td>{{subtestResult.test}}</td><td>{{subtestResult.value}}</td><td>{{subtestResult.dvalue}} ({{subtestResult.dpercent}}%)</td>
+            </tr>
+          </tbody>
+        </table>
+     </div>
+      <!--
+      <div>
+        <dl>
+          <dt><span ng-bind="detailContent.test"/>
+            (<span ng-bind="detailContent.branch"/>)
+          </dt>
+          <dd><span ng-bind="detailContent.platform"/>
+            (<span ng-bind="detailContent.machine"/>)
+          </dd>
+          <dd>
+            <a id="tt-cset" ng-href="{{detailContent.revisionHref}}" target="_blank"><span ng-bind="detailContent.revision"></span></a>
+          </dd>
+          <dd>
+            <span ng-bind="detailContent.date"/>
+          </dd>
+        </dl>
+      </div>
+      <div>
+        <dd><b>Mean</b> <span ng-bind="detailContent.value"/> - &Delta; <span ng-bind="detailContent.deltaValue"/> (<span ng-bind="detailContent.deltaPercentValue"/>%)</dd>
+      </div>
+      -->
+    </div>
   </div>
   <div class="graph-right-padding"></div>
 </div>
 
 
-<div id="graph-tooltip" ng-class="{locked: ttLocked}">
+<div id="graph-tooltip" ng-class="{locked: detailDisclosed}">
   <div class="body">
     <div>
       <p id="tt-series"><span ng-bind="tooltipContent.test"/>
@@ -64,7 +103,8 @@
       <p><a id="tt-cset" ng-href="{{tooltipContent.revisionHref}}" target="_blank"><span ng-bind="tooltipContent.revision"></span></a></p>
       <p id="tt-t" class="small" ng-bind="tooltipContent.date"></p>
     </div>
-    <span ng-hide="ttLocked">Click to lock</button>
+    <span ng-hide="detailDisclosed">Click for detail</span>
+    <span ng-show="detailDisclosed">&nbsp;</span>
   </div>
   <div class="tip"></div>
 </div>

@@ -26,21 +26,24 @@ perf.factory('getSeriesSummary', [ function() {
       extra = " e10s";
     }
     var testName = signatureProps.test;
-    if (testName === undefined)
+    var subtestSignatures;
+    if (testName === undefined) {
       testName = "summary";
-
+      subtestSignatures = signatureProps.subtest_signatures;
+    }
     var name = signatureProps.suite + " " + testName +
       " " + optionCollectionMap[signatureProps.option_collection_hash] + extra;
     var signatureName = name;
 
-    return { name: name, signature: signature, platform: platform };
+    return { name: name, signature: signature, platform: platform,
+             subtestSignatures: subtestSignatures };
   };
 }]);
 
 perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', '$location',
-                              '$modal', 'thServiceDomain', '$http', '$q', 'getSeriesSummary',
+                              '$modal', 'thServiceDomain', '$http', '$q', '$timeout', 'getSeriesSummary',
   function PerfCtrl($state, $stateParams, $scope, $rootScope, $location, $modal,
-                    thServiceDomain, $http, $q, getSeriesSummary) {
+                    thServiceDomain, $http, $q, $timeout, getSeriesSummary) {
 
     var availableColors = [ 'red', 'green', 'blue', 'orange', 'purple' ];
 
@@ -62,34 +65,27 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
       }
     }
 
-
-    $scope.resetTooltipContent = function(thSeries) {
-      $scope.tooltipContent = { revision: "(loading revision...)",
-                                revisionHref:  "",
-                                branch: thSeries.projectName,
-                                test: thSeries.name,
-                                platform: thSeries.platform,
-                                machine: thSeries.machine || 'mean' };
-      $scope.$digest();
-    };
-
     $scope.ttHideTimer = null;
-    $scope.ttLocked = false;
+    $scope.detailDisclosed = false;
 
-    $scope.updateTooltip = function(item) {
-      if ($scope.ttLocked) return;
-
+    function getItemDetail(item) {
       var i = item.dataIndex,
       s = item.series;
 
-      $scope.resetTooltipContent(s.thSeries);
+      var detail = { revision: "(loading revision...)",
+                     revisionHref:  "",
+                     branch: s.thSeries.projectName,
+                     test: s.thSeries.name,
+                     platform: s.thSeries.platform,
+                     machine: s.thSeries.machine || 'mean' };
+
       $http.get(thServiceDomain + '/api/project/' + s.thSeries.projectName +
                 '/resultset/' + s.resultSetData[i]).then(function(response) {
                   var revision = response.data.revisions[0].revision;
-                  $scope.tooltipContent.revision = revision;
+                  detail.revision = revision;
                   $scope.projects.forEach(function(project) {
                     if (project.name == s.thSeries.projectName) {
-                      $scope.tooltipContent.revisionHref = project.url + "/rev/" +
+                      detail.revisionHref = project.url + "/rev/" +
                         revision;
                     }
                   });
@@ -102,68 +98,56 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
       dv = v - v0,
       dvp = v / v0 - 1;
 
-      $scope.tooltipContent.value = Math.round(v*1000)/1000;
-      $scope.tooltipContent.deltaValue = dv.toFixed(1);
-      $scope.tooltipContent.deltaPercentValue = (100 * dvp).toFixed(1);
-      $scope.tooltipContent.date = $.plot.formatDate(new Date(t), '%a %b %d, %H:%M:%S');
-      $scope.$digest();
+      detail.value = Math.round(v*1000)/1000;
+      detail.deltaValue = dv.toFixed(1);
+      detail.deltaPercentValue = (100 * dvp).toFixed(1);
+      detail.date = $.plot.formatDate(new Date(t), '%a %b %d, %H:%M:%S');
 
-      this.plot.unhighlight();
-      highlightDataPoints();
-      this.plot.highlight(s, item.datapoint);
-    };
+      return detail;
+    }
 
-    $scope.showTooltip = function(x, y) {
-      if ($scope.ttLocked) return;
-
+    function showTooltip(x, y) {
       if ($scope.ttHideTimer) {
         clearTimeout($scope.ttHideTimer);
         $scope.ttHideTimer = null;
       }
 
-      var tip = $('#graph-tooltip'),
-        w = tip.width(),
-        h = tip.height(),
-        left = x - w / 2,
-        top = y - h - 10;
+      var tip = $('#graph-tooltip');
+      function getTipPosition(tip, x, y, yoffset) {
+        return {
+          left: x - tip.width() / 2,
+          top: y - tip.height() - yoffset
+        };
+      }
 
       tip.stop(true);
 
+      // first, reposition tooltip (width/height won't be calculated correctly
+      // in all cases otherwise)
+      var tipPosition = getTipPosition(tip, x, y, 0);
+      tip.css({ left: tipPosition.left, top: tipPosition.top }, 250);
+
+      // get new tip position after transform
+      tipPosition = getTipPosition(tip, x, y, 10);
+
       if (tip.css('visibility') == 'hidden') {
-        tip.css({ opacity: 0, visibility: 'visible', left: left,
-                  top: top + 10 });
-        tip.animate({ opacity: 1, top: top }, 250);
+        tip.css({ opacity: 0, visibility: 'visible', left: tipPosition.left,
+                  top: tipPosition.top + 10 });
+        tip.animate({ opacity: 1, left: tipPosition.left,
+                      top: tipPosition.top }, 250);
       } else {
-        tip.css({ opacity: 1, left: left, top: top });
+        tip.css({ opacity: 1, left: tipPosition.left, top: tipPosition.top });
       }
     }
 
-    $scope.hideTooltip = function(now) {
-      if ($scope.ttLocked) return;
-
-      var tip = $('#graph-tooltip');
-
-      if (!$scope.ttHideTimer && tip.css('visibility') == 'visible') {
-        $scope.ttHideTimer = setTimeout(function() {
-          $scope.ttHideTimer = null;
-          $scope.plot.unhighlight();
-          highlightDataPoints();
-          tip.animate({ opacity: 0, top: '+=10' },
-                      250, 'linear', function() {
-                        $(this).css({ visibility: 'hidden' });
-                      });
-        }, now ? 0 : 250);
-      }
-    };
-
-    $scope.lockTooltip = function() {
-      $scope.ttLocked = true;
+    $scope.discloseDetail = function() {
+      $scope.detailDisclosed = true;
       $scope.$digest();
     };
 
     Mousetrap.bind('escape', function() {
-      $scope.ttLocked = false;
-      $scope.hideTooltip();
+      $scope.detailDisclosed = false;
+      $scope.$digest();
     });
 
     // Highlight the points persisted in the url
@@ -272,6 +256,7 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
                                autoHighlight: false
                              }
                            });
+      var highlightedItem = null;
 
       highlightDataPoints();
       plotOverviewGraph();
@@ -282,34 +267,122 @@ perf.controller('PerfCtrl', [ '$state', '$stateParams', '$scope', '$rootScope', 
         return date.toUTCString();
       }
 
+      function hideTooltip(now) {
+        var tip = $('#graph-tooltip');
+
+        if (!$scope.ttHideTimer && tip.css('visibility') == 'visible') {
+          $scope.ttHideTimer = setTimeout(function() {
+            $scope.ttHideTimer = null;
+            $scope.plot.unhighlight();
+            if (highlightedItem) {
+              $scope.plot.highlight(highlightedItem.series, highlightedItem.datapoint);
+            }
+            tip.animate({ opacity: 0, top: '+=10' },
+                        250, 'linear', function() {
+                          $(this).css({ visibility: 'hidden' });
+                        });
+          }, now ? 0 : 250);
+        }
+      };
+
+
       $("#graph").bind("plothover", function (event, pos, item) {
+
+        // if examining an item, disable this behaviour
+        if ($scope.detailDisclosed)
+          return;
+
         $('#graph').css({ cursor: item ? 'pointer' : 'default' });
 
         if (item && item.series.thSeries) {
           if (item.seriesIndex != $scope.prevSeriesIndex ||
               item.dataIndex != $scope.prevDataIndex) {
 
-            $scope.updateTooltip(item);
-            $scope.showTooltip(item.pageX, item.pageY);
+            $scope.tooltipContent = getItemDetail(item);
+            $scope.$apply();
+            showTooltip(item.pageX, item.pageY);
             $scope.prevSeriesIndex = item.seriesIndex;
             $scope.prevDataIndex = item.dataIndex;
           }
         } else {
-          $scope.hideTooltip();
+          hideTooltip();
           $scope.prevSeriesIndex = null;
           $scope.prevDataIndex = null;
         }
       });
 
       $('#graph').bind('plotclick', function(e, pos, item) {
-        $scope.ttLocked = false;
+        $scope.detailDisclosed = false;
+        $scope.subtestResults = null;
         if (item) {
-          $scope.updateTooltip(item);
-          $scope.showTooltip(item.pageX, item.pageY);
-          $scope.ttLocked = true;
+          $scope.detailContent = getItemDetail(item);
+          $scope.detailDisclosed = true;
+          if (item.series.thSeries.subtestSignatures) {
+            var uri = thServiceDomain + '/api/project/' +
+              item.series.thSeries.projectName + '/performance-data/0/' +
+              'get_signature_properties/?';
+            item.series.thSeries.subtestSignatures.forEach(function(signature) {
+              uri += ('signatures=' + signature + '&');
+            });
+            var subtestResultsMap = {};
+            $http.get(uri).then(function(response) {
+              // first initialize the subtest result map
+              var i = 0;
+              item.series.thSeries.subtestSignatures.forEach(function(signature) {
+                subtestResultsMap[signature] = { test: response.data[i].test };
+                i++;
+              });
+              $scope.subtestResults = response.data.map(function(d) {
+                return { test: d.test }
+              });
+              var uri2 = thServiceDomain + '/api/project/' +
+              item.series.thSeries.projectName + '/performance-data/0/' +
+              'get_performance_data/?interval_seconds=' + $scope.myTimerange.value;
+              item.series.thSeries.subtestSignatures.forEach(function(signature) {
+                uri2 += ('&signatures=' + signature);
+              });
+              $http.get(uri2).then(function(response) {
+                var i = item.dataIndex,
+                s = item.series;
+                var resultSetId = s.resultSetData[i];
+                var prev = null;
+                response.data.forEach(function(data) {
+                  var perfData = data.blob;
+                  var i = _.findIndex(perfData, function(v) {
+                    return v.result_set_id == resultSetId;
+                  });
+                  var v = perfData[i].mean;
+                  var v0 = i ? perfData[i-1].mean : v;
+                  var dv = v - v0;
+                  var dvp = v / v0 - 1;
+                  subtestResultsMap[data.series_signature] = jQuery.extend(
+                    { value: v.toFixed(2),
+                      dvalue: dv.toFixed(2),
+                      dpercent: (100 * dvp).toFixed(1) },
+                    subtestResultsMap[data.series_signature]);
+                });
+                $scope.subtestResults = Object.keys(subtestResultsMap).map(function(k) {
+                  return subtestResultsMap[k];
+                }).sort(function(a,b) {
+                  return parseFloat(a.dpercent) < parseFloat(b.dpercent);
+                });
+              });
+            });
+
+          }
+          // this doesn't work as expected, investigate plz
+          $scope.plot.unhighlight();
+          $scope.plot.highlight(item.series, item.datapoint);
         } else {
-          $scope.hideTooltip();
+          highlightedItem = null;
+          hideTooltip();
         }
+        $scope.plot.unhighlight();
+        highlightDataPoints();
+        if (highlightedItem) {
+          $scope.plot.highlight(highlightedItem.series, highlightedItem.datapoint);
+        }
+
         $scope.$digest();
       });
     }
